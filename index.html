@@ -60,6 +60,7 @@ section.bloque{padding:40px 0 8px}
 .relleno.gris{background:#AEB5BB}
 .pista .cifra{padding-left:8px;font-weight:650;white-space:nowrap;font-size:.95rem}
 .pista .cifra small{font-weight:400;color:var(--apoyo);margin-left:6px}
+.pista .cifra small.pct-base{font-weight:600;color:var(--tinta);background:#E9F4F3;border:1px solid #CFE6E3;border-radius:4px;padding:1px 6px;margin-left:8px;font-size:.8em;white-space:nowrap}
 .rejilla-2{display:grid;grid-template-columns:1fr 1fr;gap:28px 40px}
 .panel{background:var(--panel);border:1px solid var(--linea);padding:20px 22px}
 .panel h3{margin-bottom:4px}
@@ -205,7 +206,7 @@ footer li{margin-bottom:6px}
 
 <section class="bloque" aria-labelledby="h-embudo">
   <div class="cab-bloque"><span class="indice">02</span><h2 id="h-embudo">El recorrido de la formación</h2></div>
-  <p class="entradilla">Personas distintas que han hecho cada módulo, en el orden del itinerario. La barra muestra cuánta gente sigue en cada paso; a la derecha, cuántas personas se pierden respecto al paso anterior.</p>
+  <p class="entradilla">Personas distintas que han hecho cada módulo, en el orden del itinerario. La barra muestra cuánta gente sigue en cada paso. A la derecha del número, el <strong>porcentaje sobre quienes empezaron por el introductorio</strong> (la base del 100&nbsp;%) y, en rojo, cuántas personas se pierden respecto al paso anterior.</p>
   <div class="panel"><div class="barras embudo" id="embudo" role="list" aria-label="Embudo de la formación"></div></div>
   <p class="nota" id="nota-embudo" style="margin-top:12px"></p>
 </section>
@@ -350,10 +351,11 @@ function barras(cont, filas, max, opciones){
   cont.innerHTML = filas.map(f => {
     const ancho = max ? (f.valor / max * 100) : 0;
     const extra = f.extra ? "<small>" + f.extra + "</small>" : "";
+    const pctBase = (f.pct !== undefined && f.pct !== null) ? '<small class="pct-base">' + f.pct + '</small>' : "";
     return '<div class="fila-barra' + (f.clase ? " " + f.clase : "") + '" role="listitem">' +
       '<span class="eti">' + esc(f.eti) + '</span>' +
       '<span class="pista"><span class="relleno ' + (f.color || "") + '" style="width:calc(' + ancho.toFixed(3) + '% - ' + (opciones.reserva || 90) * ancho / 100 + 'px)"></span>' +
-      '<span class="cifra num" data-valor="' + f.valor + '">' + fmt(f.valor) + extra + '</span></span></div>';
+      '<span class="cifra num" data-valor="' + f.valor + '">' + fmt(f.valor) + pctBase + extra + '</span></span></div>';
   }).join("");
   cont.setAttribute("role", "list");
 }
@@ -387,15 +389,19 @@ const PASOS = [["INTRO","I","Introductorio"],["BAS","II","Básico II"],["BAS","I
   ["BAS","V","Básico V"],["INT","I","Intermedio I"],["INT","IV","Intermedio IV"],["AVZ","I","Avanzado I"],["AVZ","IV","Avanzado IV"]];
 const modulo = (cod, mod) => DATA.modulos.find(m => m.cod === cod && m.mod === mod);
 const pasos = PASOS.map(([c, m, eti]) => ({cod:c, eti, valor: modulo(c, m).personas}));
+const baseIntro = pasos[0].valor;   // las 995 personas que empezaron por el introductorio = 100 %
 barras($("embudo"), pasos.map((p, i) => {
   const prev = i ? pasos[i - 1].valor : null;
   const dif = prev === null ? "" : (p.valor <= prev ? '<span class="caida">−' + fmt(prev - p.valor) + "</span>" : "+" + fmt(p.valor - prev));
-  return {eti:p.eti, valor:p.valor, extra: dif, clase: (i && pasos[i - 1].cod !== p.cod) ? "grupo-sep" : "",
+  return {eti:p.eti, valor:p.valor, pct: pct(p.valor, baseIntro), extra: dif, clase: (i && pasos[i - 1].cod !== p.cod) ? "grupo-sep" : "",
           color: p.cod === "INTRO" ? "sec" : ""};
 }), pasos[0].valor, {reserva:110});
 const sinMod = ["BAS","INT","AVZ"].map(c => modulo(c, "(sin módulo)")).filter(Boolean);
 const bV = pasos[4], i1 = pasos[5];
-$("nota-embudo").innerHTML = "El recorrido no es del todo lineal: " + bV.eti + " (" + fmt(bV.valor) + ") tiene menos personas que " +
+$("nota-embudo").innerHTML = "Los porcentajes se leen siempre sobre la misma base: las <strong>" + fmt(baseIntro) + " personas</strong> " +
+  "que pasaron por el introductorio (100 %). Así, de cada 100 que empiezan, " + Math.round(bV.valor / baseIntro * 100) + " llegan al " +
+  bV.eti + " y solo " + Math.round(pasos[8].valor / baseIntro * 100) + " terminan el " + pasos[8].eti + ". " +
+  "El recorrido no es del todo lineal: " + bV.eti + " (" + fmt(bV.valor) + ") tiene menos personas que " +
   i1.eti + " (" + fmt(i1.valor) + "), así que no todo el mundo pasa por " + bV.eti + " antes de seguir. " +
   "Además, hay fichas con el programa anotado pero sin módulo concreto: " +
   sinMod.map(m => fmt(m.personas) + " en " + m.prog).join(", ") + "; no entran en el embudo.";
